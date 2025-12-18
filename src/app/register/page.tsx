@@ -136,12 +136,12 @@ export default function RegisterPage() {
     setSuccess('');
 
     try {
-      let transcriptData = null;
+      let transcriptData: { name: string; type: string; data: string } | null = null;
       
       // Handle transcript file upload for students with GPA < 3.0
       if (formData.role === 'STUDENT' && transcriptFile) {
         const reader = new FileReader();
-        transcriptData = await new Promise((resolve, reject) => {
+        transcriptData = await new Promise<{ name: string; type: string; data: string }>((resolve, reject) => {
           reader.onload = () => resolve({
             name: transcriptFile.name,
             type: transcriptFile.type,
@@ -162,7 +162,6 @@ export default function RegisterPage() {
           department: formData.department,
           cgpa: formData.gpa ? parseFloat(formData.gpa) : undefined,
           policyAccepted: policyAccepted,
-          conditionalCommitment: commitmentStatement || undefined,
         }),
         ...(formData.role === 'TEACHER' && {
           department: formData.department,
@@ -176,7 +175,7 @@ export default function RegisterPage() {
           department: formData.department,
           accessPass: formData.accessPass,
         }),
-        ...(transcriptData && { transcriptFile: transcriptData }),
+        ...(transcriptData ? { transcriptFile: transcriptData } : {}),
       };
 
       const response = await fetch('/api/auth/register', {
@@ -578,6 +577,7 @@ export default function RegisterPage() {
             </div>
           </CardContent>
         </Card>
+      </div>
 
       </div>
     </div>

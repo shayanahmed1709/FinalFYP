@@ -524,9 +524,8 @@ export default function JuryManagementPage() {
     }
   }
 
-  const openAssignJury = (schedule: DefenseSchedule, proposal: ApprovedProposal) => {
+  const openAssignJury = (schedule: DefenseSchedule, proposal: any) => {
     setSelectedSchedule(schedule)
-    setSelectedProposal(proposal)
     setJuryForm({
       groupId: proposal.project.group?.id || '',
       groupName: proposal.project.group?.name || '',
@@ -588,7 +587,7 @@ export default function JuryManagementPage() {
   }
 
   const handleDeleteClick = (schedule: DefenseSchedule) => {
-    setProposalToDelete(null) // Clear proposal if any
+    setDefenseToDelete(null) // Clear defense if any
     setScheduleToDelete(schedule)
     setIsDeleteDialogOpen(true)
   }
@@ -1806,7 +1805,17 @@ export default function JuryManagementPage() {
       </Dialog>
 
       {/* Professional Delete Confirmation Dialog */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      <AlertDialog 
+        open={isDeleteDialogOpen} 
+        onOpenChange={(open) => {
+          setIsDeleteDialogOpen(open)
+          if (!open) {
+            // Clear state when dialog closes
+            setScheduleToDelete(null)
+            setDefenseToDelete(null)
+          }
+        }}
+      >
         <AlertDialogContent className="max-w-md">
           <AlertDialogHeader>
             <div className="flex items-center gap-4 mb-2">

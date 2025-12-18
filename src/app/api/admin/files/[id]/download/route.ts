@@ -71,7 +71,8 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       headers['Content-Disposition'] = `attachment; filename="${encodeURIComponent(originalName)}"`
     }
 
-    return new Response(buffer, { status: 200, headers })
+    const uint8Array = Uint8Array.from(buffer)
+    return new Response(uint8Array, { status: 200, headers })
   } catch (err) {
     console.error('Download endpoint error:', err)
     return NextResponse.json({ error: 'Failed to read file', details: err instanceof Error ? err.message : String(err) }, { status: 500 })

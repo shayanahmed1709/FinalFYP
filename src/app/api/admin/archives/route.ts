@@ -113,7 +113,7 @@ export async function GET() {
       let status = 'In Progress'
       if (project?.status === 'APPROVED' || project?.status === 'COMPLETED') {
         status = 'Completed'
-      } else if (project?.status === 'REJECTED') {
+      } else if (project?.status === 'CANCELLED') {
         status = 'Rejected'
       } else if (!group.isActive) {
         status = 'Archived'
