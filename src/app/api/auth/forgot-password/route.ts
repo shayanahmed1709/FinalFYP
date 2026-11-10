@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { z } from 'zod';
 import crypto from 'crypto';
 import { sendPasswordResetEmail } from '@/lib/email';
+import { rateLimit } from '@/lib/rate-limit';
 
 const forgotPasswordSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -15,9 +16,25 @@ function generateVerificationCode(): string {
 
 // POST /api/auth/forgot-password - Request password reset
 export async function POST(request: NextRequest) {
+  const ipLimit = rateLimit(request, {
+    bucket: 'forgot-password',
+    limit: 5,
+    windowMs: 15 * 60 * 1000,
+  });
+  if (ipLimit) return ipLimit;
+
   try {
     const body = await request.json();
     const { email } = forgotPasswordSchema.parse(body);
+
+    const emailLimit = rateLimit(request, {
+      bucket: 'forgot-password-email',
+      limit: 5,
+      windowMs: 60 * 60 * 1000,
+      extraKey: email.toLowerCase(),
+      scope: 'global',
+    });
+    if (emailLimit) return emailLimit;
 
     // Find user by email
     const user = await db.user.findUnique({

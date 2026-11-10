@@ -6,6 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import { validatePassword, getSystemSettings } from '@/lib/security';
 import { sendWelcomeEmail } from '@/lib/email';
+import { rateLimit } from '@/lib/rate-limit';
 
 const registerSchema = z.object({
   name: z.string().min(2),
@@ -45,6 +46,13 @@ function getSystemSettings() {
 
 // POST /api/auth/register - User registration
 export async function POST(request: NextRequest) {
+  const limited = rateLimit(request, {
+    bucket: 'register',
+    limit: 20,
+    windowMs: 60 * 60 * 1000,
+  });
+  if (limited) return limited;
+
   try {
     // Check maintenance mode
     const settings = getSystemSettings();

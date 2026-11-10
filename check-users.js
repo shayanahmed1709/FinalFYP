@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client')
 const bcrypt = require('bcryptjs')
+const { resolveDemoAdminPassword, logDemoAdminPassword } = require('./scripts/demo-admin-password.cjs')
 
 const prisma = new PrismaClient()
 
@@ -21,7 +22,8 @@ async function checkUsers() {
     console.log('❌ No users found in database!')
     console.log('\nCreating default admin user...')
     
-    const hashedPassword = await bcrypt.hash('admin123', 10)
+    const adminPassword = resolveDemoAdminPassword()
+    const hashedPassword = await bcrypt.hash(adminPassword.password, 10)
     
     const admin = await prisma.user.create({
       data: {
@@ -35,8 +37,9 @@ async function checkUsers() {
     
     console.log('✅ Admin user created!')
     console.log('   Email: admin@hamdard.edu')
-    console.log('   Password: admin123')
-    console.log('   Role: ADMIN\n')
+    console.log('   Role: ADMIN')
+    logDemoAdminPassword(adminPassword)
+    console.log('')
   } else {
     console.log(`Found ${users.length} users:\n`)
     
@@ -47,10 +50,11 @@ async function checkUsers() {
       console.log(`   Status: ${user.status}`)
       console.log(`   Password Hash: ${user.password.substring(0, 20)}...`)
       
-      // Test password
-      const testPassword = 'admin123'
-      const isValid = await bcrypt.compare(testPassword, user.password)
-      console.log(`   Test Password (admin123): ${isValid ? '✅ Valid' : '❌ Invalid'}`)
+      const envPassword = process.env.DEMO_ADMIN_PASSWORD?.trim()
+      if (envPassword) {
+        const isValid = await bcrypt.compare(envPassword, user.password)
+        console.log(`   Matches DEMO_ADMIN_PASSWORD: ${isValid ? 'yes' : 'no'}`)
+      }
       console.log('')
     }
   }

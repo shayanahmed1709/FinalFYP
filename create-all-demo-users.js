@@ -1,16 +1,20 @@
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
+const { resolveDemoAdminPassword, logDemoAdminPassword } = require('./scripts/demo-admin-password.cjs');
 
 const prisma = new PrismaClient();
 
 async function createDemoUsers() {
   try {
+    const adminPassword = resolveDemoAdminPassword();
+    let createdAdmin = false;
+
     // Demo users data
     const demoUsers = [
       {
         name: 'Super Admin',
         email: 'ahmedshayan928@gmail.com',
-        password: 'admin123',
+        password: adminPassword.password,
         role: 'ADMIN',
         department: 'Administration'
       },
@@ -69,6 +73,7 @@ async function createDemoUsers() {
       });
 
       console.log(`Created ${userData.role}: ${user.email}`);
+      if (userData.role === 'ADMIN') createdAdmin = true;
 
       // Create profile based on role
       if (userData.role === 'STUDENT') {
@@ -95,7 +100,12 @@ async function createDemoUsers() {
 
     console.log('Demo users created successfully!');
     console.log('\nDemo Accounts:');
-    console.log('Admin (Super Admin): ahmedshayan928@gmail.com / admin123');
+    console.log('Admin (Super Admin): ahmedshayan928@gmail.com');
+    if (createdAdmin) {
+      logDemoAdminPassword(adminPassword);
+    } else {
+      console.log('Admin user already existed; password was not changed.');
+    }
     console.log('Committee Head: committee@hamdard.edu / committee123');
     console.log('Teacher: teacher@hamdard.edu / teacher123');
     console.log('Student: student@hamdard.edu / student123');

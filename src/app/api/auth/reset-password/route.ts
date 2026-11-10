@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { sendPasswordResetConfirmationEmail } from '@/lib/email';
 import { validatePassword } from '@/lib/security';
+import { rateLimit } from '@/lib/rate-limit';
 
 const resetPasswordSchema = z.object({
   token: z.string().min(1, 'Reset token is required'),
@@ -12,6 +13,13 @@ const resetPasswordSchema = z.object({
 
 // POST /api/auth/reset-password - Reset password with token
 export async function POST(request: NextRequest) {
+  const limited = rateLimit(request, {
+    bucket: 'reset-password',
+    limit: 10,
+    windowMs: 15 * 60 * 1000,
+  });
+  if (limited) return limited;
+
   try {
     const body = await request.json();
     const { token, password } = resetPasswordSchema.parse(body);

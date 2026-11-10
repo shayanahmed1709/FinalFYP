@@ -129,7 +129,9 @@ export async function POST(request: NextRequest) {
       database: {
         users: users.map(u => ({
           ...u,
-          password: '[REDACTED]' // Don't include passwords in backup
+          password: '[REDACTED]', // Don't include passwords in backup
+          resetToken: null,
+          resetTokenExpiry: null,
         })),
         projects,
         notifications,
