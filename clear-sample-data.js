@@ -164,7 +164,8 @@ async function clearSampleData() {
 
     console.log("\n✅ Cleanup completed successfully!");
     console.log("\n📋 Only permanent account remaining:");
-    console.log("  🔐 Admin (PERMANENT): ahmedshayan928@gmail.com / admin123");
+    console.log("  🔐 Admin (PERMANENT): ahmedshayan928@gmail.com");
+    console.log("     Password is not stored in this script. Set DEMO_ADMIN_PASSWORD and run npm run seed.");
     console.log("\n🗑️  Demo accounts deleted:");
     console.log("  ❌ Teacher: teacher@hamdard.edu");
     console.log("  ❌ Committee Head: committee@hamdard.edu");

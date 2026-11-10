@@ -1,16 +1,34 @@
+import { createRequire } from "module";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+
+const require = createRequire(import.meta.url);
+const { resolveDemoAdminPassword, logDemoAdminPassword } = require("../scripts/demo-admin-password.cjs");
 
 const prisma = new PrismaClient();
 
 async function main() {
   console.log("🌱 Seeding demo users...");
 
+  const existingAdmin = await prisma.user.findUnique({
+    where: { email: "ahmedshayan928@gmail.com" },
+    select: { password: true },
+  });
+
+  let adminHash = existingAdmin?.password;
+  if (!adminHash) {
+    const adminPassword = resolveDemoAdminPassword();
+    logDemoAdminPassword(adminPassword);
+    adminHash = await bcrypt.hash(adminPassword.password, 10);
+  } else {
+    console.log("Admin user already exists; password left unchanged.");
+  }
+
   const users = [
     {
       name: "Admin (Super Admin)",
       email: "ahmedshayan928@gmail.com",
-      password: await bcrypt.hash("admin123", 10),
+      password: adminHash,
       role: "ADMIN",
     },
     {

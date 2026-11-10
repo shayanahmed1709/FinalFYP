@@ -1,12 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server'
-import nodemailer from 'nodemailer'
 import { PrismaClient } from '@prisma/client'
+import { EmailConfigError, getEmailTransport } from '@/lib/email'
+import { rateLimit } from '@/lib/rate-limit'
 
 const prisma = new PrismaClient()
 
 export async function POST(request: NextRequest) {
+  const limited = rateLimit(request, {
+    bucket: 'send-policy-notification',
+    limit: 3,
+    windowMs: 60 * 60 * 1000,
+  })
+  if (limited) return limited
+
   try {
-    const { policyVersion, policyDescription, adminEmail } = await request.json()
+    const { policyVersion, policyDescription } = await request.json()
+
+    let transporter
+    let fromAddress: string
+    try {
+      const transport = getEmailTransport()
+      transporter = transport.transporter
+      fromAddress = transport.fromAddress
+    } catch (error) {
+      const message = error instanceof EmailConfigError
+        ? error.message
+        : 'Email is not configured.'
+      return NextResponse.json({ error: message }, { status: 500 })
+    }
 
     // Get all active users
     const users = await prisma.user.findMany({
@@ -20,21 +41,10 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    // Configure email transporter
-    const transporter = nodemailer.createTransport({
-      host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-      port: parseInt(process.env.EMAIL_PORT || '587'),
-      secure: false,
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASSWORD,
-      },
-    })
-
     // Send email to each user
     const emailPromises = users.map(async (user) => {
       const mailOptions = {
-        from: `"FYP Administration" <${adminEmail}>`,
+        from: `"FYP Administration" <${fromAddress}>`,
         to: user.email,
         subject: `New FYP Policy Document Available - Version ${policyVersion}`,
         html: `

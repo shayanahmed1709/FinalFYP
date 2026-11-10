@@ -2,45 +2,67 @@ import nodemailer from 'nodemailer';
 import fs from 'fs';
 import path from 'path';
 
-// Get admin email from system settings
-function getAdminEmail(): string {
+export class EmailConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'EmailConfigError';
+  }
+}
+
+function requireEmailCredentials(): { user: string; password: string } {
+  const user = process.env.EMAIL_USER?.trim() ?? '';
+  const password = process.env.EMAIL_PASSWORD?.trim() ?? '';
+  const missing: string[] = [];
+  if (!user) missing.push('EMAIL_USER');
+  if (!password) missing.push('EMAIL_PASSWORD');
+  if (missing.length > 0) {
+    throw new EmailConfigError(
+      `Email is not configured. Set ${missing.join(' and ')} in the server environment. Do not hardcode credentials or expose them with NEXT_PUBLIC_ variables.`
+    );
+  }
+  return { user, password };
+}
+
+function readContactEmail(): string | null {
   try {
     const settingsPath = path.join(process.cwd(), 'data', 'system-settings.json');
     if (fs.existsSync(settingsPath)) {
       const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
-      return settings.general?.contactEmail || 'ahmedshayan928@gmail.com';
+      const contact = settings.general?.contactEmail;
+      if (typeof contact === 'string' && contact.trim()) {
+        return contact.trim();
+      }
     }
   } catch (error) {
-    console.error('Error reading admin email from settings:', error);
+    console.error('Error reading contact email from settings:', error);
   }
-  return 'ahmedshayan928@gmail.com'; // Fallback
+  return null;
 }
 
-// Create email transporter using Gmail or other SMTP service
-export const createEmailTransporter = () => {
-  const emailUser = process.env.EMAIL_USER || getAdminEmail();
-  const emailPassword = process.env.EMAIL_PASSWORD || 'kcgs qetd brsk dtfz'; // Fallback to .env.local value
-  
-  // Debug logging (remove in production)
-  console.log('📧 Email Configuration:');
-  console.log('   User:', emailUser);
-  console.log('   Password:', emailPassword ? '✅ Set (' + emailPassword.substring(0, 4) + '****)' : '❌ Not Set');
-  
+export function getEmailTransport() {
+  const { user, password } = requireEmailCredentials();
+  const port = Number(process.env.EMAIL_PORT || 587);
   const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 587,
+    host: process.env.EMAIL_HOST?.trim() || 'smtp.gmail.com',
+    port: Number.isFinite(port) ? port : 587,
     secure: false, // Use TLS
     auth: {
-      user: emailUser,
-      pass: emailPassword,
+      user,
+      pass: password,
     },
     tls: {
       rejectUnauthorized: false
     }
   });
 
-  return transporter;
-};
+  return {
+    transporter,
+    fromAddress: user,
+    contactEmail: readContactEmail() || user,
+  };
+}
+
+export const createEmailTransporter = () => getEmailTransport().transporter;
 
 // Send password reset email
 export async function sendPasswordResetEmail(
@@ -48,18 +70,17 @@ export async function sendPasswordResetEmail(
   verificationCode: string,
   userName: string
 ) {
-  const transporter = createEmailTransporter();
-  const adminEmail = getAdminEmail();
-  
-  const mailOptions = {
-    from: {
-      name: 'FYP Management System',
-      address: process.env.EMAIL_USER || adminEmail
-    },
-    to: email,
-    replyTo: process.env.EMAIL_USER || adminEmail,
-    subject: 'Password Reset Code - FYP Management System',
-    html: `<!DOCTYPE html>
+  try {
+    const { transporter, fromAddress, contactEmail } = getEmailTransport();
+    const mailOptions = {
+      from: {
+        name: 'FYP Management System',
+        address: fromAddress
+      },
+      to: email,
+      replyTo: fromAddress,
+      subject: 'Password Reset Code - FYP Management System',
+      html: `<!DOCTYPE html>
 <html>
 <head>
 <style>
@@ -96,13 +117,13 @@ body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
 <p>Best regards,<br>FYP Management System Team</p>
 </div>
 <div class="footer">
-<p>This is an automated email from ${adminEmail}</p>
+<p>This is an automated email from ${contactEmail}</p>
 <p>&copy; ${new Date().getFullYear()} FYP Management System. All rights reserved.</p>
 </div>
 </div>
 </body>
 </html>`,
-    text: `Password Reset Request
+      text: `Password Reset Request
 
 Hello ${userName},
 
@@ -116,10 +137,9 @@ If you didn't request this reset, please ignore this email.
 
 Best regards,
 FYP Management System Team
-Email: ${adminEmail}`,
-  };
+Email: ${contactEmail}`,
+    };
 
-  try {
     console.log('📧 Attempting to send password reset email to:', email);
     const info = await transporter.sendMail(mailOptions);
     console.log('✅ Password reset email sent successfully!');
@@ -129,7 +149,7 @@ Email: ${adminEmail}`,
   } catch (error: any) {
     console.error('❌ Failed to send password reset email');
     console.error('   To:', email);
-    console.error('   Error:', error.message || error);
+    console.error('   Error:', error instanceof EmailConfigError ? error.message : (error.message || error));
     return { success: false, error };
   }
 }
@@ -139,18 +159,17 @@ export async function sendPasswordResetConfirmationEmail(
   email: string,
   userName: string
 ) {
-  const transporter = createEmailTransporter();
-  const adminEmail = getAdminEmail();
-  
-  const mailOptions = {
-    from: {
-      name: 'FYP Management System',
-      address: process.env.EMAIL_USER || adminEmail
-    },
-    to: email,
-    replyTo: process.env.EMAIL_USER || adminEmail,
-    subject: 'Password Successfully Reset - FYP Management System',
-    html: `<!DOCTYPE html>
+  try {
+    const { transporter, fromAddress } = getEmailTransport();
+    const mailOptions = {
+      from: {
+        name: 'FYP Management System',
+        address: fromAddress
+      },
+      to: email,
+      replyTo: fromAddress,
+      subject: 'Password Successfully Reset - FYP Management System',
+      html: `<!DOCTYPE html>
 <html>
 <head>
 <style>
@@ -178,16 +197,15 @@ body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
 </div>
 </body>
 </html>`,
-  };
+    };
 
-  try {
     console.log('📧 Sending password reset confirmation to:', email);
     const info = await transporter.sendMail(mailOptions);
     console.log('✅ Confirmation email sent successfully to:', email);
     return { success: true };
   } catch (error: any) {
     console.error('❌ Error sending confirmation email to:', email);
-    console.error('   Error:', error.message || error);
+    console.error('   Error:', error instanceof EmailConfigError ? error.message : (error.message || error));
     return { success: false, error };
   }
 }
@@ -198,27 +216,26 @@ export async function sendWelcomeEmail(
   userName: string,
   userRole: string
 ) {
-  const transporter = createEmailTransporter();
-  const adminEmail = getAdminEmail();
-  
-  const roleNames: Record<string, string> = {
-    'STUDENT': 'Student',
-    'TEACHER': 'Teacher',
-    'COMMITTEE_HEAD': 'Committee Head',
-    'ADMIN': 'Administrator'
-  };
-  
-  const roleName = roleNames[userRole] || userRole;
-  
-  const mailOptions = {
-    from: {
-      name: 'FYP Management System',
-      address: process.env.EMAIL_USER || adminEmail
-    },
-    to: email,
-    replyTo: process.env.EMAIL_USER || adminEmail,
-    subject: 'Welcome to FYP Management System - Account Pending Approval',
-    html: `<!DOCTYPE html>
+  try {
+    const { transporter, fromAddress, contactEmail } = getEmailTransport();
+    const roleNames: Record<string, string> = {
+      'STUDENT': 'Student',
+      'TEACHER': 'Teacher',
+      'COMMITTEE_HEAD': 'Committee Head',
+      'ADMIN': 'Administrator'
+    };
+
+    const roleName = roleNames[userRole] || userRole;
+
+    const mailOptions = {
+      from: {
+        name: 'FYP Management System',
+        address: fromAddress
+      },
+      to: email,
+      replyTo: fromAddress,
+      subject: 'Welcome to FYP Management System - Account Pending Approval',
+      html: `<!DOCTYPE html>
 <html>
 <head>
 <style>
@@ -258,17 +275,17 @@ body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
 <li>Communicate with supervisors and team members</li>
 <li>Track your FYP progress</li>
 </ul>
-<p>If you have any questions or didn't create this account, please contact us at ${adminEmail}</p>
+<p>If you have any questions or didn't create this account, please contact us at ${contactEmail}</p>
 <p>Best regards,<br>FYP Management System Team</p>
 </div>
 <div class="footer">
-<p>This is an automated email from ${adminEmail}</p>
+<p>This is an automated email from ${contactEmail}</p>
 <p>&copy; ${new Date().getFullYear()} FYP Management System. All rights reserved.</p>
 </div>
 </div>
 </body>
 </html>`,
-    text: `Welcome to FYP Management System!
+      text: `Welcome to FYP Management System!
 
 Hello ${userName},
 
@@ -289,21 +306,20 @@ Once approved, you will be able to:
 - Communicate with supervisors and team members
 - Track your FYP progress
 
-If you have any questions or didn't create this account, please contact us at ${adminEmail}
+If you have any questions or didn't create this account, please contact us at ${contactEmail}
 
 Best regards,
 FYP Management System Team
-Email: ${adminEmail}`
-  };
+Email: ${contactEmail}`
+    };
 
-  try {
     console.log('📧 Sending welcome email to:', email);
     const info = await transporter.sendMail(mailOptions);
     console.log('✅ Welcome email sent successfully to:', email);
     return { success: true };
   } catch (error: any) {
     console.error('❌ Error sending welcome email to:', email);
-    console.error('   Error:', error.message || error);
+    console.error('   Error:', error instanceof EmailConfigError ? error.message : (error.message || error));
     return { success: false, error };
   }
 }

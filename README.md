@@ -72,6 +72,19 @@ npm start
 
 Open [http://localhost:3000](http://localhost:3000) to see your application running.
 
+## Environment and secrets
+
+Copy `.env.example` to `.env` (or `.env.local`) and set the values in the host environment (your shell, Vercel, or Railway). Credentials belong only in server environment variables. Do not hardcode them in source, and do not prefix secrets with `NEXT_PUBLIC_` — that prefix exposes them to the browser.
+
+SQLite database files are not committed. Recreate a local database from the migrations in `prisma/migrations`, then seed demo users:
+
+```bash
+npx prisma migrate deploy
+npm run seed
+```
+
+`DATABASE_URL="file:./dev.db"` is resolved relative to the `prisma` directory. `npm run seed` uses `DEMO_ADMIN_PASSWORD` when it is set. When it is unset, the script generates a random admin password and prints it once. See `EMAIL_SETUP_GUIDE.md` for SMTP setup.
+
 ## 🤖 Powered by Z.ai
 
 This scaffold is optimized for use with [Z.ai](https://chat.z.ai) - your AI assistant for:
